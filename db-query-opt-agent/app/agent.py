@@ -11,6 +11,7 @@ Environment:
 
 import os
 import re
+import json
 import logging
 from pathlib import Path
 from typing import List, Optional
@@ -128,7 +129,9 @@ def optimize_query_node(state: dict) -> dict:
             "You are an expert enterprise database query optimizer. "
             "Analyze the following SQL query. Identify any bottlenecks such as "
             "missing indexes, N+1 subquery loops, implicit joins, or full table scans. "
-            "Return only the raw rewritten SQL — no markdown, no explanation.\n\n"
+            "Return a strict JSON object with two fields: 'optimized_query' (containing the raw rewritten SQL) "
+            "and 'reasoning' (1-3 sentences on what was changed and why). "
+            "Do not include any other text.\n\n"
             f"Query:\n{query}"
         )
 
@@ -137,7 +140,23 @@ def optimize_query_node(state: dict) -> dict:
                 model="gemini-2.5-flash",
                 contents=prompt,
             )
-            optimized = response.text.strip().strip("```sql").strip("```").strip()
+            raw_text = response.text.strip()
+            if raw_text.startswith("```json"):
+                raw_text = raw_text[7:]
+            elif raw_text.startswith("```"):
+                raw_text = raw_text[3:]
+            if raw_text.endswith("```"):
+                raw_text = raw_text[:-3]
+            raw_text = raw_text.strip()
+            
+            try:
+                parsed = json.loads(raw_text)
+                optimized = parsed.get("optimized_query", query)
+                reasoning = parsed.get("reasoning", "No reasoning provided.")
+                state["session_logs"].append(f"Optimizer reasoning: {reasoning}")
+            except json.JSONDecodeError as e:
+                logger.warning(f"Failed to parse JSON from optimizer, falling back to passthrough: {e}")
+                optimized = query
         else:
             # Passthrough — no API key available
             logger.warning("optimize_query_node: GEMINI_API_KEY not set, using passthrough.")
@@ -201,7 +220,7 @@ app = _workflow.compile()
 # ==============================================================================
 def process_query(raw_query: str) -> dict:
     """Construct a fresh state and invoke the compiled graph."""
-    return app.invoke({
+    result = app.invoke({
         "raw_query": raw_query,
         "sanitized_query": None,
         "optimized_query": None,
@@ -210,6 +229,16 @@ def process_query(raw_query: str) -> dict:
         "current_errors": [],
         "execution_status": "INITIALIZED",
     })
+    
+    if os.environ.get("SAVE_RUN_HISTORY", "True").lower() in ("true", "1", "yes", "y", "t"):
+        try:
+            history_path = Path(__file__).resolve().parent / "run_history.jsonl"
+            with open(history_path, "a") as f:
+                f.write(json.dumps(result) + "\n")
+        except Exception as e:
+            logger.error(f"Failed to write run history: {e}")
+            
+    return result
 
 
 if __name__ == "__main__":
