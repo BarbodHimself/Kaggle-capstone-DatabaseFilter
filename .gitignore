@@ -149,6 +149,8 @@ activemq-data/
 
 # Environments
 .env
+*.env
+api.env
 .envrc
 .venv
 env/
@@ -216,3 +218,9 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Agent specific files
+app/demo.db
+eval_results.json
+app/run_history.jsonl
+reports/
