@@ -93,6 +93,15 @@ def run() -> None:
             print("  STATUS : SUCCESS")
             print(f"  Input  : {state['raw_query']}")
             print(f"  Output : {state['optimized_query']}")
+            
+            reasoning = None
+            for log in reversed(state.get("session_logs", [])):
+                if log.startswith("Optimizer reasoning: "):
+                    reasoning = log[len("Optimizer reasoning: "):]
+                    break
+            if reasoning:
+                print(f"  Why    : {reasoning}")
+                
             print("-" * 68 + "\n")
 
         elif status == "SANITIZATION_FAILED":

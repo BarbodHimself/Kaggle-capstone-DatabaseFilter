@@ -18,6 +18,8 @@ dependencies = [
     "google-genai",
     "langgraph",
     "python-dotenv",
+    "fastapi>=0.100.0",
+    "uvicorn>=0.22.0",
 ]
 requires-python = ">=3.11,<3.14"
 

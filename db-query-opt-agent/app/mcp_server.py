@@ -20,7 +20,9 @@ Integration (add to mcp_config.json):
 """
 
 import asyncio
+import os
 import re
+import sqlite3
 from typing import Any
 
 from mcp.server import Server
@@ -65,26 +67,9 @@ class ExplainQueryPlanArgs(BaseModel):
 
 
 # ---------------------------------------------------------------------------
-# Mock Schema Registry
-# Replace the MOCK_SCHEMA_REGISTRY lookups with real driver calls
-# (e.g. psycopg2, sqlalchemy) to connect to a live database.
-# Credentials for the real database should be loaded from environment
-# variables — never passed through tool arguments.
+# Database connection for schema tool
 # ---------------------------------------------------------------------------
-MOCK_SCHEMA_REGISTRY: dict[str, dict] = {
-    "users": {
-        "columns": {"id": "INT", "email": "VARCHAR(255)", "active": "TINYINT", "created_at": "TIMESTAMP"},
-        "indexes": ["PRIMARY KEY (id)", "UNIQUE INDEX idx_email (email)"],
-    },
-    "orders": {
-        "columns": {"id": "INT", "user_id": "INT", "amount": "DECIMAL(10,2)", "status": "VARCHAR(50)"},
-        "indexes": ["PRIMARY KEY (id)", "INDEX idx_user_id (user_id)"],
-    },
-    "metrics": {
-        "columns": {"id": "INT", "event": "VARCHAR(100)", "recorded_at": "DATETIME"},
-        "indexes": ["PRIMARY KEY (id)"],
-    },
-}
+DB_PATH = os.path.join(os.path.dirname(__file__), "demo.db")
 
 
 # ---------------------------------------------------------------------------
@@ -117,17 +102,40 @@ async def call_tool(name: str, arguments: dict[str, Any] | None) -> list[TextCon
         except Exception as exc:
             return [TextContent(type="text", text=f"Validation error: {exc}")]
 
-        schema = MOCK_SCHEMA_REGISTRY.get(validated.table_name)
-        if not schema:
+        if not os.path.exists(DB_PATH):
+            return [TextContent(type="text", text="Database file not found. Run seed_db.py first.")]
+
+        conn = sqlite3.connect(DB_PATH)
+        cursor = conn.cursor()
+        
+        # Verify table exists and get columns
+        cursor.execute(f"PRAGMA table_info({validated.table_name})")
+        columns_info = cursor.fetchall()
+        
+        if not columns_info:
+            conn.close()
             return [TextContent(type="text", text=f"Table '{validated.table_name}' not found.")]
+            
+        columns = {row[1]: row[2] for row in columns_info}
+        
+        # Get indexes
+        cursor.execute(f"PRAGMA index_list({validated.table_name})")
+        indexes_info = cursor.fetchall()
+        indexes = []
+        for idx in indexes_info:
+            indexes.append(idx[1])
+            
+        conn.close()
 
         lines = [f"Table: {validated.table_name}"]
         lines.append("Columns:")
-        for col, dtype in schema["columns"].items():
+        for col, dtype in columns.items():
             lines.append(f"  {col}  {dtype}")
         lines.append("Indexes:")
-        for idx in schema["indexes"]:
+        for idx in indexes:
             lines.append(f"  {idx}")
+        if not indexes:
+            lines.append("  (None)")
         return [TextContent(type="text", text="\n".join(lines))]
 
     elif name == "explain_query_plan":

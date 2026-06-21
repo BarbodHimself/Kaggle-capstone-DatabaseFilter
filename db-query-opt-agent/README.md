@@ -187,6 +187,7 @@ If both conditions are satisfied, `sanitized_query` is set to the original input
 | `SELECT e.name, d.name FROM employees e, departments d WHERE e.dept_id = d.id` | No banned keywords, ANSI-89 implicit join is allowed through sanitization | Rewritten to explicit ANSI-92 INNER JOIN |
 | `SELECT id, (SELECT SUM(amount) FROM invoices WHERE user_id = u.id) FROM users u` | Correlated subquery, no banned keywords | Flattened to JOIN or window function |
 | `SELECT * FROM orders WHERE id IN (SELECT order_id FROM items WHERE qty > 10)` | Subquery, no banned keywords | Rewritten as INNER JOIN with indexed predicate |
+| `WITH cte AS (SELECT id FROM users) SELECT * FROM cte` | Common Table Expression (CTE), valid SELECT structure | Optimized with schema context |
 | `SELECT * FROM metrics;` | Trailing semicolons only — stripped and re-checked, no stacking found | Proceeds to optimizer normally |
 
 ---
@@ -246,6 +247,61 @@ Final state:
   optimized_query   = None
   current_errors    = [two errors above]
 ```
+
+## Testing Matrix (Capstone Coverage)
+
+To demonstrate the full range of the agent's capabilities to the Capstone review committee, the evaluation harness (`app/eval_agent.py`) tests the system against the following variations:
+
+| Category | Example Query Tested | Expected Agent Action |
+|---|---|---|
+| **Clean (Basic)** | `SELECT * FROM users` | `PASS` (Rewrite with explicit columns) |
+| **Clean (CTE)** | `WITH cte AS (SELECT id FROM users) SELECT * FROM cte` | `PASS` (Recognize valid structure, optimize) |
+| **Clean (Aggregate)** | `SELECT COUNT(*) FROM orders` | `PASS` (Recognize valid structure, optimize) |
+| **Destructive (DROP)** | `DROP TABLE users` | `BLOCK` (Caught by DDL sanitizer) |
+| **Destructive (REVOKE)**| `REVOKE SELECT ON orders FROM analyst` | `BLOCK` (Caught by DDL sanitizer) |
+| **Stacking (Basic)** | `SELECT 1; DROP TABLE users;` | `BLOCK` (Caught by statement stacking filter) |
+| **Stacking (Comment)** | `SELECT * FROM metrics; -- stacking bypass` | `BLOCK` (Caught by statement stacking filter) |
+| **Tautology Bypass** | `SELECT * FROM users WHERE email = 'a' OR 1=1` | *Known Gap* (System allows, but tracks as a known limitation) |
+| **Encoding Bypass** | `SELECT 0x44524f50` | *Known Gap* (System allows, tracks lack of hex decoding) |
+
+---
+
+## Evaluation Results
+
+To measure the agent's accuracy across valid queries and various injection bypass attempts, you can run the quantitative evaluation harness:
+
+```bash
+uv run python app/eval_agent.py
+```
+
+| Category | Accuracy |
+|---|---|
+| clean | % |
+| destructive_keyword | % |
+| stacking | % |
+| tautology_bypass | % |
+| comment_bypass | % |
+| union_bypass | % |
+| encoding_bypass | % |
+| **Overall** | **%** |
+
+*(Paste your actual accuracy numbers here after running the harness)*
+
+---
+
+## Generating a Report
+
+You can generate a comprehensive Markdown summary of your agent's performance and decision-making history:
+
+```bash
+uv run python app/report_generator.py
+```
+
+This script reads from `eval_results.json` and the session history (`app/run_history.jsonl`) to produce `reports/summary_report.md`. The generated report includes:
+- An Evaluation Summary table with latency and accuracy metrics.
+- A Known Gaps list showing areas that need improvement.
+- A Sample Optimizer Reasoning section pulling real decision logs from your query history.
+- Programmatic Recommendations for next steps.
 
 ---
 
@@ -329,6 +385,7 @@ DB_MIDDLEWARE > SELECT * FROM users WHERE active = 1
   STATUS : SUCCESS
   Input  : SELECT * FROM users WHERE active = 1
   Output : SELECT id, username, email FROM users WHERE active = 1
+  Why    : The original query used a wildcard SELECT * which retrieves all columns, so it was rewritten to explicitly select only the necessary columns (id, username, email) to reduce network overhead and memory usage.
 --------------------------------------------------------------------
 ```
 
@@ -448,7 +505,7 @@ The proxy receives the raw query string over the network, runs the graph, and fo
 +--------------------------------------------+
 ```
 
-The sidecar scales horizontally alongside the application container with no separate scaling configuration. The `Dockerfile` in the project root can be used as a base image for the sidecar container.
+The sidecar scales horizontally alongside the application container with no separate scaling configuration.
 
 ---
 
@@ -456,7 +513,7 @@ The sidecar scales horizontally alongside the application container with no sepa
 
 ### Prerequisites
 
-Before cloning, make sure the following are installed on your machine:
+Before cloning, make sure the following are installed on your machine. **Docker is NOT required.** This project runs entirely locally using standard Python and `uv`.
 
 | Tool | Required | Install Link |
 |---|---|---|
@@ -473,27 +530,22 @@ git clone https://github.com/BarbodHimself/Kaggle-capstone-DatabaseFilter.git
 cd Kaggle-capstone-DatabaseFilter/db-query-opt-agent
 ```
 
-### Step 2 — Install all dependencies
+### Step 2 — Create your API key file
 
-`uv sync` reads `pyproject.toml`, creates a virtual environment inside `.venv/`, and installs all locked packages. No manual `pip install` is needed.
-
-```bash
-uv sync
-```
-
-Expected output: a list of installed packages ending with `Installed N packages in Xs`.
-
-### Step 3 — Create your API key file
-
-Create a file called `api.env` in the `db-query-opt-agent/` directory (the same folder as `pyproject.toml`).
+Create a file called `api.env` in the `db-query-opt-agent/` directory:
 
 ```
 GEMINI_API_KEY=your_key_here
 ```
 
-Get a free API key from https://aistudio.google.com. This file is gitignored and will never be committed.
+### Step 3 — Install dependencies and Run
 
-If you skip this step, the system still runs but the optimizer falls back to passthrough mode — it returns the sanitized query unchanged without LLM rewriting.
+`uv sync` reads `pyproject.toml`, creates a virtual environment inside `.venv/`, and installs all locked packages. No manual `pip install` is needed. This single command installs everything needed for the core app, tests, and the new evaluation/report scripts.
+
+```bash
+uv sync
+uv run python app/seed_db.py
+```
 
 ### Step 4 — (Optional) Install agents-cli for the Playground
 
@@ -602,6 +654,32 @@ DB_MIDDLEWARE > exit
 
 ---
 
+## Real-World Business Implementation Guide
+
+For organizations looking to move this agent from a Capstone proof-of-concept into a production enterprise environment, the following architectural layers must be addressed:
+
+### 1. Perimeter Defense (WAF Integration)
+This middleware agent should **not** replace your Web Application Firewall (WAF). It is an intelligent second line of defense.
+*   **Implementation:** Deploy AWS WAF, Cloudflare, or F5 at the network edge to block known malformed signatures, IP reputation lists, and massive volumetric attacks *before* they consume LLM tokens or proxy compute.
+*   **Agent's Role:** Catches the sophisticated, novel logical injection attempts that bypass pattern-matching WAFs, and optimizes the structurally sound queries that remain.
+
+### 2. High-Availability (HA) and Connection Pooling
+LLM inference introduces latency. The database connection cannot be held open while waiting for the Gemini API.
+*   **Implementation:** Use PgBouncer (for PostgreSQL) or ProxySQL (for MySQL) immediately *downstream* of this agent.
+*   **Agent's Role:** The agent remains stateless. It receives the HTTP/TCP request, executes the LangGraph state machine, gets the optimized query, and only then hands it off to the connection pooler to execute against the physical database.
+
+### 3. Continuous Integration / Continuous Deployment (CI/CD)
+Enterprise models require rigorous regression testing whenever the prompt or schema changes.
+*   **Implementation:** Integrate `app/eval_agent.py` into GitHub Actions or GitLab CI. Set a pipeline failure threshold (e.g., if accuracy on the "stacking" category drops below 100%, block the PR).
+*   **Agent's Role:** Provides the deterministic testing harness (`eval_results.json`) that the CI/CD pipeline reads to enforce quality gates.
+
+### 4. Telemetry and Latency Budgets
+Every millisecond counts in database transactions.
+*   **Implementation:** Hook the agent's output into Datadog, New Relic, or Google Cloud Trace. Configure alerts if the `average_latency` metric exceeds your SLA (e.g., 500ms).
+*   **Agent's Role:** The agent already yields latency metrics per query. By persisting `app/run_history.jsonl` into a log aggregator (like ELK or Splunk), teams can continuously audit the LLM's "Why" reasoning against actual execution times.
+
+---
+
 ## Connecting to Other Systems
 
 This section explains how to wire the middleware to your own application, database, or service layer.
@@ -633,13 +711,19 @@ The `process_query` helper constructs the full initial state automatically. No s
 
 ### Connecting a real database to the MCP server
 
-By default, `mcp_server.py` returns mock data from an in-memory registry. To connect it to a real database, replace the `MOCK_SCHEMA_REGISTRY` lookups:
+By default, `mcp_server.py` uses a local SQLite database (`demo.db`). To connect it to your production database, replace the SQLite logic in `call_tool`:
 
 ```python
 # In app/mcp_server.py — replace this block:
-schema = MOCK_SCHEMA_REGISTRY.get(validated.table_name)
+conn = sqlite3.connect(DB_PATH)
+cursor = conn.cursor()
+cursor.execute(f"PRAGMA table_info({validated.table_name})")
+# ...
+```
 
-# With a real driver call, for example with psycopg2:
+With a real driver call, for example with psycopg2:
+
+```python
 import psycopg2, os
 
 def get_real_schema(table_name: str) -> dict | None:
