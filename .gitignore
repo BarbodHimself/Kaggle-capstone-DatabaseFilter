@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[codz]
@@ -12,56 +11,6 @@ __pycache__/
 build/
 develop-eggs/
 dist/
-=======
-# ─────────────────────────────────────────────────────────────────────────────
-# Credentials & secrets  (NEVER commit these)
-# ─────────────────────────────────────────────────────────────────────────────
-api.env
-*.env
-.env
-.env.*
-secrets/
-*.pem
-*.key
-*.p12
-*.pfx
-
-# ─────────────────────────────────────────────────────────────────────────────
-# Python runtime artifacts
-# ─────────────────────────────────────────────────────────────────────────────
-__pycache__/
-*.py[cod]
-*.pyc
-*.pyo
-*.pyd
-*$py.class
-*.so
-
-# ─────────────────────────────────────────────────────────────────────────────
-# Virtual environments
-# ─────────────────────────────────────────────────────────────────────────────
-.venv/
-.venv*/
-venv/
-venv*/
-env/
-ENV/
-env.bak/
-venv.bak/
-__pypackages__/
-
-# ─────────────────────────────────────────────────────────────────────────────
-# Package build & distribution
-# ─────────────────────────────────────────────────────────────────────────────
-build/
-dist/
-**/dist/
-*.egg-info/
-*.egg
-MANIFEST
-.Python
-develop-eggs/
->>>>>>> 76c2c21 (feat: initial commit of secure database middleware optimization agent using LangGraph and Gemini)
 downloads/
 eggs/
 .eggs/
@@ -71,7 +20,6 @@ parts/
 sdist/
 var/
 wheels/
-<<<<<<< HEAD
 share/python-wheels/
 *.egg-info/
 .installed.cfg
@@ -268,135 +216,3 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
-=======
-pip-wheel-metadata/
-share/python-wheels/
-.installed.cfg
-
-# ─────────────────────────────────────────────────────────────────────────────
-# Testing & coverage
-# ─────────────────────────────────────────────────────────────────────────────
-.pytest_cache/
-.cache/
-htmlcov/
-.coverage
-.coverage.*
-coverage.xml
-*.cover
-*.py,cover
-nosetests.xml
-.tox/
-.nox/
-.hypothesis/
-tests/load_test/.results/
-
-# ─────────────────────────────────────────────────────────────────────────────
-# Type checkers & linters
-# ─────────────────────────────────────────────────────────────────────────────
-.mypy_cache/
-.dmypy.json
-dmypy.json
-.ty/
-.pyre/
-.ruff_cache/
-
-# ─────────────────────────────────────────────────────────────────────────────
-# Google ADK & Agents CLI
-# ─────────────────────────────────────────────────────────────────────────────
-.adk/
-.agents-cli-scripts/
-.google-agents-cli/
-.persist_vector_store
-.saved_chats
-.locust_env
-
-# ─────────────────────────────────────────────────────────────────────────────
-# Infrastructure & deployment
-# ─────────────────────────────────────────────────────────────────────────────
-.terraform/
-.terraform*/
-.Terraform*
-*.tfstate
-*.tfstate.*
-*.tfvars
-my_env.tfvars
-tools/a2a-inspector/
-
-# ─────────────────────────────────────────────────────────────────────────────
-# IDEs & editors
-# ─────────────────────────────────────────────────────────────────────────────
-.idea/
-.idea
-.project
-.classpath
-.c9/
-*.launch
-.settings/
-*.sublime-workspace
-.vscode/*
-!.vscode/settings.json
-!.vscode/tasks.json
-!.vscode/launch.json
-!.vscode/extensions.json
-.history/
-*.vscode*
-*.code-workspace
-
-# ─────────────────────────────────────────────────────────────────────────────
-# Operating system
-# ─────────────────────────────────────────────────────────────────────────────
-.DS_Store
-Thumbs.db
-Desktop.ini
-$RECYCLE.BIN/
-*.lnk
-
-# ─────────────────────────────────────────────────────────────────────────────
-# Logs & temporary files
-# ─────────────────────────────────────────────────────────────────────────────
-*.log
-pip-log.txt
-pip-delete-this-directory.txt
-tmp/
-tmp*/
-/tmp
-/out-tsc
-/bazel-out
-
-# ─────────────────────────────────────────────────────────────────────────────
-# Node (if any frontend tooling is ever added)
-# ─────────────────────────────────────────────────────────────────────────────
-node_modules/
-**/node_modules/
-npm-debug.log
-yarn-error.log
-.npm/
-
-# ─────────────────────────────────────────────────────────────────────────────
-# Misc scaffolding / build tools
-# ─────────────────────────────────────────────────────────────────────────────
-*.manifest
-*.spec
-*.sage.py
-.scrapy
-.webassets-cache
-.ropeproject
-.spyderproject
-.spyproject
-.python-version
-Pipfile
-Pipfile.lock
-profile_default/
-ipython_config.py
-docs/_build/
-/site
-/coverage
-/connect.lock
-/libpeerconnection.log
-testem.log
-/typings
-.sass-cache/
-**/.angular/
-/.angular/cache
-.requirements.txt
->>>>>>> 76c2c21 (feat: initial commit of secure database middleware optimization agent using LangGraph and Gemini)
